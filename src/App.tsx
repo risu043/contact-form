@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -13,6 +13,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Loader2, Send } from 'lucide-react';
 
+type FieldErrors = {
+  [key: string]: string;
+};
+
+interface CF7Response {
+  contact_form_id: number;
+  status: string;
+  message: string;
+  invalid_fields?: Array<{
+    field: string;
+    message: string;
+    idref: null;
+    error_id: string;
+  }>;
+  posted_data_hash: string;
+  into: string;
+}
+
 export default function ContactForm() {
   const [formData, setFormData] = useState({
     yourname: '',
@@ -20,30 +38,28 @@ export default function ContactForm() {
     yoursubject: '',
     yourmessage: '',
   });
-  const [unitTag, setUnitTag] = useState('');
+
   const [wpMessage, setWpMessage] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    setUnitTag(`wpcf7-f93-p1-o1-${Math.random().toString(36).slice(2, 11)}`);
-  }, []);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFieldErrors((prev) => ({ ...prev, [e.target.name]: '' }));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setFieldErrors({});
 
     const API_URL = import.meta.env.VITE_API_URL;
 
     const formElement = e.target as HTMLFormElement;
     const body = new FormData(formElement);
-    body.append('_wpcf7_unit_tag', unitTag);
 
     try {
       const res = await fetch(API_URL, {
@@ -54,10 +70,18 @@ export default function ContactForm() {
         throw new Error('Something went wrong');
       }
 
-      const data = await res.json();
+      const data: CF7Response = await res.json();
       console.log('Success:', data);
       setWpMessage(data.message);
       setStatus(data.status);
+
+      if (data.invalid_fields) {
+        const errors: FieldErrors = {};
+        data.invalid_fields.forEach((field) => {
+          errors[field.field] = field.message;
+        });
+        setFieldErrors(errors);
+      }
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -92,10 +116,14 @@ export default function ContactForm() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <input type="hidden" name="_wpcf7" value="93" />
-            <input type="hidden" name="_wpcf7_version" value="5.7.5.1" />
+            <input type="hidden" name="_wpcf7_version" value="5.9.8" />
             <input type="hidden" name="_wpcf7_locale" value="ja" />
-            <input type="hidden" name="_wpcf7_unit_tag" value={unitTag} />
-            <input type="hidden" name="_wpcf7_container_post" value="0" />
+            <input
+              type="hidden"
+              name="_wpcf7_unit_tag"
+              value="wpcf7-f93-p41-o1"
+            />
+            <input type="hidden" name="_wpcf7_container_post" value="" />
 
             <div className="space-y-2">
               <Label htmlFor="name">名前</Label>
@@ -107,6 +135,9 @@ export default function ContactForm() {
                 onChange={handleChange}
                 required
               />
+              {fieldErrors.yourname && (
+                <p className="text-sm text-rose-500">{fieldErrors.yourname}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -119,6 +150,9 @@ export default function ContactForm() {
                 onChange={handleChange}
                 required
               />
+              {fieldErrors.youremail && (
+                <p className="text-sm text-rose-500">{fieldErrors.youremail}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -131,6 +165,11 @@ export default function ContactForm() {
                 onChange={handleChange}
                 required
               />
+              {fieldErrors.yoursubject && (
+                <p className="text-sm text-rose-500">
+                  {fieldErrors.yoursubject}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -142,6 +181,11 @@ export default function ContactForm() {
                 onChange={handleChange}
                 required
               />
+              {fieldErrors.yourmessage && (
+                <p className="text-sm text-rose-500">
+                  {fieldErrors.yourmessage}
+                </p>
+              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
